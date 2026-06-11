@@ -62,7 +62,6 @@ class AnalogClockCard extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     if (!this._built) return;
-    // pick up HA timezone + locale on first set
     if (!this._tz) {
       this._tz     = this._config.timezone || hass.config?.time_zone || Intl.DateTimeFormat().resolvedOptions().timeZone;
       this._locale = this._config.locale   || hass.language || 'en-AU';
@@ -84,14 +83,15 @@ class AnalogClockCard extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>
         :host {
-          display: inline-block;
-          /* width/height set dynamically in _applySize() to match canvas exactly */
-          /* inline-block shrinks to content; margin auto centres within the grid column */
-          margin: 0 auto;
+          display: block;
+          width: 100%;
+          height: 100%;
         }
         ha-card {
           width: 100%; height: 100%;
-          display: flex; align-items: center; justify-content: center;
+          display: flex;
+          align-items: center;
+          justify-content: center;
           background: transparent;
           box-shadow: none;
           padding: 0;
@@ -104,7 +104,6 @@ class AnalogClockCard extends HTMLElement {
     this._canvas = this.shadowRoot.getElementById('clock');
     this._ctx    = this._canvas.getContext('2d');
 
-    // observe card resize so clock fills available space
     if (typeof ResizeObserver !== 'undefined') {
       this._ro = new ResizeObserver(() => this._applySize());
       this._ro.observe(this.shadowRoot.querySelector('ha-card'));
@@ -124,7 +123,6 @@ class AnalogClockCard extends HTMLElement {
       const rect = card.getBoundingClientRect();
       const w = rect.width  || card.offsetWidth  || 220;
       const h = rect.height || card.offsetHeight || 220;
-      // size to height (the constrained dimension in a button row)
       size = Math.max(60, h - 8);
     }
 
@@ -135,9 +133,10 @@ class AnalogClockCard extends HTMLElement {
       this._canvas.style.height = size + 'px';
     }
 
-    // shrink the host to exactly the canvas size — no dead space either side
-    this.style.width  = size + 'px';
-    this.style.height = size + 'px';
+    // don't constrain host width — let the grid column own the width
+    // the ha-card flex container centres the canvas within whatever space is given
+    this.style.width  = '';
+    this.style.height = '';
 
     this._draw();
   }
@@ -146,7 +145,6 @@ class AnalogClockCard extends HTMLElement {
 
   _startTick() {
     if (this._timerId) return;
-    // align to the next whole second
     const now  = Date.now();
     const wait = 1000 - (now % 1000);
     this._draw();
@@ -164,8 +162,6 @@ class AnalogClockCard extends HTMLElement {
   }
 
   // ── Time extraction (WKWebView-safe) ────────────────────
-  // Uses a single Intl.DateTimeFormat call with all parts together
-  // — avoids the individual toLocaleString() calls that break on iOS WKWebView.
 
   _getNow() {
     const now = new Date();
@@ -187,16 +183,13 @@ class AnalogClockCard extends HTMLElement {
       if (type !== 'literal') parts[type] = parseInt(value, 10);
     });
 
-    // hour12:false gives 0-23; handle midnight edge (returns 24 on some engines)
     const h = parts.hour === 24 ? 0 : parts.hour;
     const m = parts.minute;
     const s = parts.second;
 
-    // digital 24hr string
     const pad     = v => String(v).padStart(2, '0');
     const timeStr = `${pad(h)}:${pad(m)}:${pad(s)}`;
 
-    // date string — use Intl for locale-aware weekday + month names
     const dateFmt = new Intl.DateTimeFormat(this._locale, {
       timeZone: tz,
       weekday:  'short',
@@ -222,7 +215,6 @@ class AnalogClockCard extends HTMLElement {
     const cy     = size / 2;
     const radius = size * 0.46;
 
-    // ── colours (with YAML overrides) ──
     const c = {
       face:        this._config.color_face         || 'rgba(10, 14, 22, 0.85)',
       border:      this._config.color_border       || 'rgba(255,255,255,0.55)',
@@ -238,20 +230,17 @@ class AnalogClockCard extends HTMLElement {
 
     ctx.clearRect(0, 0, size, size);
 
-    // ── face ──
     ctx.beginPath();
     ctx.arc(cx, cy, radius, 0, Math.PI * 2);
     ctx.fillStyle = c.face;
     ctx.fill();
 
-    // ── border ring ──
     ctx.beginPath();
     ctx.arc(cx, cy, radius, 0, Math.PI * 2);
     ctx.strokeStyle = c.border;
     ctx.lineWidth = Math.max(1, radius * 0.022);
     ctx.stroke();
 
-    // ── tick marks ──
     for (let i = 0; i < 60; i++) {
       const angle   = (i * Math.PI * 2) / 60 - Math.PI / 2;
       const isMajor = i % 5 === 0;
@@ -270,7 +259,6 @@ class AnalogClockCard extends HTMLElement {
       ctx.stroke();
     }
 
-    // ── numbers 1–12 ──
     const numRadius  = radius * 0.68;
     const fontSize   = Math.max(10, Math.round(radius * 0.18));
     ctx.font         = `600 ${fontSize}px -apple-system, "Helvetica Neue", Arial, sans-serif`;
@@ -286,10 +274,8 @@ class AnalogClockCard extends HTMLElement {
       );
     }
 
-    // ── time data ──
     const { h, m, s, timeStr, dateStr } = this._getNow();
 
-    // ── digital time (upper centre) ──
     const digitalSize = Math.max(9, Math.round(radius * 0.175));
     ctx.font          = `400 ${digitalSize}px "SF Mono", "Consolas", monospace`;
     ctx.fillStyle     = c.digitalTime;
@@ -297,7 +283,6 @@ class AnalogClockCard extends HTMLElement {
     ctx.textBaseline  = 'middle';
     ctx.fillText(timeStr, cx, cy - radius * 0.38);
 
-    // ── date (lower centre) ──
     const dateSize   = Math.max(8, Math.round(radius * 0.155));
     ctx.font         = `500 ${dateSize}px -apple-system, "Helvetica Neue", Arial, sans-serif`;
     ctx.fillStyle    = c.date;
@@ -305,7 +290,6 @@ class AnalogClockCard extends HTMLElement {
     ctx.textBaseline = 'middle';
     ctx.fillText(dateStr, cx, cy + radius * 0.42);
 
-    // ── hands ──
     const secAngle  = (s / 60) * Math.PI * 2 - Math.PI / 2;
     const minAngle  = ((m + s / 60) / 60) * Math.PI * 2 - Math.PI / 2;
     const hourAngle = ((h % 12 + m / 60) / 12) * Math.PI * 2 - Math.PI / 2;
@@ -314,7 +298,6 @@ class AnalogClockCard extends HTMLElement {
     this._drawHand(ctx, cx, cy, minAngle,  radius * 0.70, radius * 0.022, c.minuteHand, radius * 0.12);
     this._drawSecondHand(ctx, cx, cy, secAngle, radius, c.secondHand);
 
-    // ── center dot ──
     ctx.beginPath();
     ctx.arc(cx, cy, radius * 0.042, 0, Math.PI * 2);
     ctx.fillStyle = c.centerDot;
@@ -371,4 +354,4 @@ window.customCards.push({
   preview:     false,
 });
 
-console.info('%c ANALOG-CLOCK-CARD v2.1 ', 'color: white; font-weight: bold; background: #1a1a2e');
+console.info('%c ANALOG-CLOCK-CARD v2.2 ', 'color: white; font-weight: bold; background: #1a1a2e');
