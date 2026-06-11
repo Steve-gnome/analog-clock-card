@@ -84,9 +84,10 @@ class AnalogClockCard extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>
         :host {
-          display: block;
-          /* width is set dynamically in _applySize() to match canvas — eliminates dead space */
-          height: 100%;
+          display: inline-block;
+          /* width/height set dynamically in _applySize() to match canvas exactly */
+          /* inline-block shrinks to content; margin auto centres within the grid column */
+          margin: 0 auto;
         }
         ha-card {
           width: 100%; height: 100%;
@@ -219,7 +220,7 @@ class AnalogClockCard extends HTMLElement {
     const ctx    = this._ctx;
     const cx     = size / 2;
     const cy     = size / 2;
-    const radius = size * 0.46;   // leave a small margin
+    const radius = size * 0.46;
 
     // ── colours (with YAML overrides) ──
     const c = {
@@ -345,14 +346,12 @@ class AnalogClockCard extends HTMLElement {
     ctx.strokeStyle = color;
     ctx.lineCap     = 'round';
 
-    // main shaft
     ctx.beginPath();
     ctx.lineWidth = Math.max(1, radius * 0.014);
     ctx.moveTo(-radius * 0.18, 0);
     ctx.lineTo(radius * 0.82, 0);
     ctx.stroke();
 
-    // small circle near tail end
     ctx.beginPath();
     ctx.arc(-radius * 0.12, 0, radius * 0.03, 0, Math.PI * 2);
     ctx.fillStyle = color;
@@ -372,4 +371,4 @@ window.customCards.push({
   preview:     false,
 });
 
-console.info('%c ANALOG-CLOCK-CARD v2.0 ', 'color: white; font-weight: bold; background: #1a1a2e');
+console.info('%c ANALOG-CLOCK-CARD v2.1 ', 'color: white; font-weight: bold; background: #1a1a2e');
