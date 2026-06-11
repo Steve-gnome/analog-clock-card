@@ -5,7 +5,7 @@
  * A clean, scaleable analog clock card with:
  *   - 1–12 numerals, major + minor tick marks
  *   - Hour, minute and second (red) hands
- *   - 24hr digital time in upper centre of face
+ *   - 24hr digital time in upper centre of face (HH:MM)
  *   - Date display (e.g. Wed 11 Jun) below centre
  *   - Fully scaleable — size driven by card height or explicit config
  *   - Cross-platform safe time handling (works in HA iOS app / WKWebView)
@@ -188,7 +188,7 @@ class AnalogClockCard extends HTMLElement {
     const s = parts.second;
 
     const pad     = v => String(v).padStart(2, '0');
-    const timeStr = `${pad(h)}:${pad(m)}:${pad(s)}`;
+    const timeStr = `${pad(h)}:${pad(m)}`;   // HH:MM only — seconds shown by hand
 
     const dateFmt = new Intl.DateTimeFormat(this._locale, {
       timeZone: tz,
@@ -230,17 +230,20 @@ class AnalogClockCard extends HTMLElement {
 
     ctx.clearRect(0, 0, size, size);
 
+    // ── face ──
     ctx.beginPath();
     ctx.arc(cx, cy, radius, 0, Math.PI * 2);
     ctx.fillStyle = c.face;
     ctx.fill();
 
+    // ── border ring ──
     ctx.beginPath();
     ctx.arc(cx, cy, radius, 0, Math.PI * 2);
     ctx.strokeStyle = c.border;
     ctx.lineWidth = Math.max(1, radius * 0.022);
     ctx.stroke();
 
+    // ── tick marks ──
     for (let i = 0; i < 60; i++) {
       const angle   = (i * Math.PI * 2) / 60 - Math.PI / 2;
       const isMajor = i % 5 === 0;
@@ -259,6 +262,7 @@ class AnalogClockCard extends HTMLElement {
       ctx.stroke();
     }
 
+    // ── numbers 1–12 ──
     const numRadius  = radius * 0.68;
     const fontSize   = Math.max(10, Math.round(radius * 0.18));
     ctx.font         = `600 ${fontSize}px -apple-system, "Helvetica Neue", Arial, sans-serif`;
@@ -276,13 +280,15 @@ class AnalogClockCard extends HTMLElement {
 
     const { h, m, s, timeStr, dateStr } = this._getNow();
 
+    // ── digital time — raised to align with the 10/2 number height ──
     const digitalSize = Math.max(9, Math.round(radius * 0.175));
     ctx.font          = `400 ${digitalSize}px "SF Mono", "Consolas", monospace`;
     ctx.fillStyle     = c.digitalTime;
     ctx.textAlign     = 'center';
     ctx.textBaseline  = 'middle';
-    ctx.fillText(timeStr, cx, cy - radius * 0.38);
+    ctx.fillText(timeStr, cx, cy - radius * 0.55);
 
+    // ── date (lower centre) ──
     const dateSize   = Math.max(8, Math.round(radius * 0.155));
     ctx.font         = `500 ${dateSize}px -apple-system, "Helvetica Neue", Arial, sans-serif`;
     ctx.fillStyle    = c.date;
@@ -290,6 +296,7 @@ class AnalogClockCard extends HTMLElement {
     ctx.textBaseline = 'middle';
     ctx.fillText(dateStr, cx, cy + radius * 0.42);
 
+    // ── hands ──
     const secAngle  = (s / 60) * Math.PI * 2 - Math.PI / 2;
     const minAngle  = ((m + s / 60) / 60) * Math.PI * 2 - Math.PI / 2;
     const hourAngle = ((h % 12 + m / 60) / 12) * Math.PI * 2 - Math.PI / 2;
@@ -298,6 +305,7 @@ class AnalogClockCard extends HTMLElement {
     this._drawHand(ctx, cx, cy, minAngle,  radius * 0.70, radius * 0.022, c.minuteHand, radius * 0.12);
     this._drawSecondHand(ctx, cx, cy, secAngle, radius, c.secondHand);
 
+    // ── center dot ──
     ctx.beginPath();
     ctx.arc(cx, cy, radius * 0.042, 0, Math.PI * 2);
     ctx.fillStyle = c.centerDot;
@@ -354,4 +362,4 @@ window.customCards.push({
   preview:     false,
 });
 
-console.info('%c ANALOG-CLOCK-CARD v2.2 ', 'color: white; font-weight: bold; background: #1a1a2e');
+console.info('%c ANALOG-CLOCK-CARD v2.3 ', 'color: white; font-weight: bold; background: #1a1a2e');
