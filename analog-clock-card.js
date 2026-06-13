@@ -24,6 +24,10 @@
  * # Locale for date display (optional — defaults to HA language)
  * locale: en-AU
  *
+ * # Show minute tick markers around the face (optional — defaults to true).
+ * # Set to false to show only the 12 hour markers.
+ * show_minute_markers: true
+ *
  * # Colours (all optional)
  * color_face:         "rgba(10, 14, 22, 0.85)"
  * color_border:       "#ffffff"
@@ -219,9 +223,11 @@ class AnalogClockCard extends HTMLElement {
     ctx.strokeStyle = c.border; ctx.lineWidth = Math.max(1, radius * 0.022); ctx.stroke();
 
     // ticks
+    const showMinuteTicks = this._config.show_minute_markers !== false;
     for (let i = 0; i < 60; i++) {
-      const angle   = (i * Math.PI * 2) / 60 - Math.PI / 2;
       const isMajor = i % 5 === 0;
+      if (!isMajor && !showMinuteTicks) continue;
+      const angle   = (i * Math.PI * 2) / 60 - Math.PI / 2;
       const inner   = isMajor ? radius * 0.80 : radius * 0.88;
       ctx.beginPath();
       ctx.moveTo(cx + Math.cos(angle) * inner,        cy + Math.sin(angle) * inner);
@@ -323,12 +329,15 @@ class AnalogClockCardEditor extends HTMLElement {
 
   _render() {
     const c = this._config;
+    const showMinuteTicks = c.show_minute_markers !== false;
     this.shadowRoot.innerHTML = `
       <style>
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; padding: 8px 0; }
         label { display: flex; flex-direction: column; font-size: 13px; color: var(--primary-text-color); gap: 4px; }
         input { padding: 6px 8px; border-radius: 4px; border: 1px solid var(--divider-color); background: var(--card-background-color); color: var(--primary-text-color); font-size: 14px; }
         input:focus { outline: 2px solid var(--primary-color); border-color: transparent; }
+        label.checkbox { flex-direction: row; align-items: center; gap: 8px; grid-column: 1 / -1; }
+        label.checkbox input { width: auto; padding: 0; }
       </style>
       <div class="grid">
         <label>Size (px)
@@ -336,6 +345,10 @@ class AnalogClockCardEditor extends HTMLElement {
         </label>
         <label>Timezone
           <input id="timezone" type="text" value="${c.timezone || ''}" placeholder="e.g. Australia/Adelaide" />
+        </label>
+        <label class="checkbox">
+          <input id="show_minute_markers" type="checkbox" ${showMinuteTicks ? 'checked' : ''} />
+          Show minute markers
         </label>
       </div>
     `;
@@ -346,6 +359,9 @@ class AnalogClockCardEditor extends HTMLElement {
     this.shadowRoot.getElementById('timezone').addEventListener('change', e => {
       const val = e.target.value.trim();
       this._fire({ ...this._config, timezone: val || undefined });
+    });
+    this.shadowRoot.getElementById('show_minute_markers').addEventListener('change', e => {
+      this._fire({ ...this._config, show_minute_markers: e.target.checked ? undefined : false });
     });
   }
 
@@ -365,4 +381,4 @@ window.customCards.push({
   preview:     false,
 });
 
-console.info('%c ANALOG-CLOCK-CARD v3.0 ', 'color: white; font-weight: bold; background: #1a1a2e');
+console.info('%c ANALOG-CLOCK-CARD v3.1 ', 'color: white; font-weight: bold; background: #1a1a2e');
