@@ -28,6 +28,12 @@
  * # Set to false to show only the 12 hour markers.
  * show_minute_markers: true
  *
+ * # Show the sweeping second hand (optional — defaults to true).
+ * # Set to false to hide it. This also drops the redraw cadence from once
+ * # per second to once per minute — a large CPU saving on low-resource
+ * # systems, since nothing else on the face changes more than once a minute.
+ * show_second_hand: true
+ *
  * # Colours (all optional)
  * color_face:         "rgba(10, 14, 22, 0.85)"
  * color_border:       "#ffffff"
@@ -63,6 +69,12 @@ class AnalogClockCard extends HTMLElement {
       this._built = true;
     }
     this._applySize();
+    // If the tick is already running (e.g. a live edit in the visual editor),
+    // restart it so a show_second_hand change switches cadence immediately.
+    if (this._timerId || this._alignTimer) {
+      this._stopTick();
+      if (this._hass) this._startTick();
+    }
   }
 
   set hass(hass) {
@@ -143,12 +155,18 @@ class AnalogClockCard extends HTMLElement {
     // re-entrant set hass() during the sub-second alignment window sees the
     // card as already running and won't schedule a second (orphaned) timer.
     if (this._timerId || this._alignTimer) return;
+    // With no second hand, nothing on the face changes more than once a
+    // minute — so tick once a minute instead of once a second (60x fewer
+    // redraws). Epoch-ms % 60000 aligns to the local minute rollover too,
+    // since every IANA zone is a whole-minute offset from UTC.
+    const showSeconds = this._config.show_second_hand !== false;
+    const period = showSeconds ? 1000 : 60000;
     const now  = Date.now();
-    const wait = 1000 - (now % 1000);
+    const wait = period - (now % period);
     this._draw();
     this._alignTimer = setTimeout(() => {
       this._draw();
-      this._timerId = setInterval(() => this._draw(), 1000);
+      this._timerId = setInterval(() => this._draw(), period);
       this._alignTimer = null;   // hand off cleanly from align timer to interval
     }, wait);
   }
@@ -275,7 +293,9 @@ class AnalogClockCard extends HTMLElement {
 
     this._drawHand(ctx, cx, cy, hourAngle, radius * 0.54, radius * 0.032, c.hourHand,   radius * 0.12);
     this._drawHand(ctx, cx, cy, minAngle,  radius * 0.84, radius * 0.028, c.minuteHand, radius * 0.12);
-    this._drawSecondHand(ctx, cx, cy, secAngle, radius, c.secondHand);
+    if (this._config.show_second_hand !== false) {
+      this._drawSecondHand(ctx, cx, cy, secAngle, radius, c.secondHand);
+    }
 
     // center dot
     ctx.beginPath(); ctx.arc(cx, cy, radius * 0.042, 0, Math.PI * 2);
@@ -335,6 +355,7 @@ class AnalogClockCardEditor extends HTMLElement {
   _render() {
     const c = this._config;
     const showMinuteTicks = c.show_minute_markers !== false;
+    const showSecondHand  = c.show_second_hand   !== false;
     this.shadowRoot.innerHTML = `
       <style>
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; padding: 8px 0; }
@@ -343,6 +364,7 @@ class AnalogClockCardEditor extends HTMLElement {
         input:focus { outline: 2px solid var(--primary-color); border-color: transparent; }
         label.checkbox { flex-direction: row; align-items: center; gap: 8px; grid-column: 1 / -1; }
         label.checkbox input { width: auto; padding: 0; }
+        .hint { grid-column: 1 / -1; font-size: 12px; color: var(--secondary-text-color); margin: -4px 0 4px 24px; }
       </style>
       <div class="grid">
         <label>Size (px)
@@ -355,6 +377,11 @@ class AnalogClockCardEditor extends HTMLElement {
           <input id="show_minute_markers" type="checkbox" ${showMinuteTicks ? 'checked' : ''} />
           Show minute markers
         </label>
+        <label class="checkbox">
+          <input id="show_second_hand" type="checkbox" ${showSecondHand ? 'checked' : ''} />
+          Show second hand
+        </label>
+        <div class="hint">Off drops the redraw rate to once a minute — lighter on low-resource systems.</div>
       </div>
     `;
     this.shadowRoot.getElementById('size').addEventListener('change', e => {
@@ -367,6 +394,9 @@ class AnalogClockCardEditor extends HTMLElement {
     });
     this.shadowRoot.getElementById('show_minute_markers').addEventListener('change', e => {
       this._fire({ ...this._config, show_minute_markers: e.target.checked ? undefined : false });
+    });
+    this.shadowRoot.getElementById('show_second_hand').addEventListener('change', e => {
+      this._fire({ ...this._config, show_second_hand: e.target.checked ? undefined : false });
     });
   }
 
