@@ -49,6 +49,7 @@ class AnalogClockCard extends HTMLElement {
     this._hass    = null;
     this._built   = false;
     this._timerId = null;
+    this._alignTimer = null;
     this._tz      = null;
     this._locale  = 'en-AU';
   }
@@ -71,10 +72,10 @@ class AnalogClockCard extends HTMLElement {
       this._tz     = this._config.timezone || hass.config?.time_zone || Intl.DateTimeFormat().resolvedOptions().timeZone;
       this._locale = this._config.locale   || hass.language || 'en-AU';
     }
-    if (!this._timerId) this._startTick();
+    if (!this._timerId && !this._alignTimer) this._startTick();
   }
 
-  connectedCallback()    { if (this._hass && !this._timerId) this._startTick(); }
+  connectedCallback()    { if (this._hass && !this._timerId && !this._alignTimer) this._startTick(); }
   disconnectedCallback() { this._stopTick(); }
   getCardSize()          { return 4; }
 
@@ -138,13 +139,17 @@ class AnalogClockCard extends HTMLElement {
   // ── Tick ────────────────────────────────────────────────
 
   _startTick() {
-    if (this._timerId) return;
+    // Guard on BOTH handles. _alignTimer is set synchronously below, so a
+    // re-entrant set hass() during the sub-second alignment window sees the
+    // card as already running and won't schedule a second (orphaned) timer.
+    if (this._timerId || this._alignTimer) return;
     const now  = Date.now();
     const wait = 1000 - (now % 1000);
     this._draw();
     this._alignTimer = setTimeout(() => {
       this._draw();
       this._timerId = setInterval(() => this._draw(), 1000);
+      this._alignTimer = null;   // hand off cleanly from align timer to interval
     }, wait);
   }
 
@@ -381,4 +386,4 @@ window.customCards.push({
   preview:     false,
 });
 
-console.info('%c ANALOG-CLOCK-CARD v3.1 ', 'color: white; font-weight: bold; background: #1a1a2e');
+console.info('%c ANALOG-CLOCK-CARD v3.2 ', 'color: white; font-weight: bold; background: #1a1a2e');
